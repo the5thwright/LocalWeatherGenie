@@ -1,17 +1,23 @@
 import os
 import requests
 import datetime
+from urllib.parse import quote_plus  # <-- Added for URL encoding
 
-WEATHER_API_KEY = "YOUR_WEATHERAPI_KEY_HERE"  # <-- Replace with your WeatherAPI key
+# No OpenAI imports or API keys needed
+
+# Weather API key (still required for weather data)
+WEATHER_API_KEY = "b30d599df20f4b3abc6113928251105"
 OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "mistral"
 
+# --- Logging ---
 def log_action(message):
     """Log actions and errors to changelog.txt with a timestamp."""
     timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
     with open("changelog.txt", "a", encoding="utf-8") as f:
         f.write(f"{timestamp} {message}\n")
 
+# --- Ollama Health Check ---
 def check_ollama_health():
     """Check if Ollama is running and the required model is available."""
     log_action("Checking Ollama health...")
@@ -27,10 +33,12 @@ def check_ollama_health():
         log_action(f"Ollama health check failed: {e}")
         raise RuntimeError(f"Ollama health check failed: {e}") from e
 
+# --- Weather Data Fetching ---
 def get_weather(location="Marion, IN"):
-    """Fetch weather data for the given location from WeatherAPI."""
-    log_action(f"Fetching weather for {location}...")
-    url = f"http://api.weatherapi.com/v1/forecast.json?key={WEATHER_API_KEY}&q={location}&days=1&aqi=yes"
+    """Fetch weather data for the given location using WeatherAPI."""
+    encoded_location = quote_plus(location)
+    log_action(f"Fetching weather for '{location}' (encoded: '{encoded_location}')...")
+    url = f"http://api.weatherapi.com/v1/forecast.json?key={WEATHER_API_KEY}&q={encoded_location}&days=1&aqi=yes"
     try:
         res = requests.get(url, timeout=10)
         res.raise_for_status()
@@ -62,8 +70,9 @@ def get_weather(location="Marion, IN"):
         "chance_of_rain": forecast["daily_chance_of_rain"]
     }
 
-def generate_report(location="Marion, IN"):
-    """Generate a friendly weather report using Ollama (Mistral)."""
+# --- LLM Report Generation using Ollama (Mistral) ---
+def generate_report(location):
+    """Generate a friendly weather report for the given location using Ollama (Mistral)."""
     weather = get_weather(location)
     prompt = f"""Today's weather report for {weather['location']}:
 - Condition: {weather['condition']}
@@ -91,11 +100,15 @@ def generate_report(location="Marion, IN"):
         log_action(f"Ollama LLM request failed: {e}")
         raise RuntimeError(f"Ollama LLM request failed: {e}") from e
 
+# --- Main Entry Point ---
 if __name__ == "__main__":
     try:
         check_ollama_health()
-        location = input("Enter a location (e.g., 'Marion, IN' or 'London'): ") or "Marion, IN"
-        print(generate_report(location))
+        # Prompt the user for their location
+        user_location = input("Enter a location (e.g., 'Marion, IN' or 'London') [default: Marion, IN]: ").strip()
+        if not user_location:
+            user_location = "Marion, IN"
+        print(generate_report(user_location))
     except Exception as e:
         print(f"Error: {e}")
         log_action(f"Script failed: {e}")
